@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CNC VIEW - Gemini AI</title>
+<style>
+:root{color-scheme:dark;--bg:#10151d;--panel:#192331;--line:#334155;--accent:#38bdf8;--text:#e5edf6;--muted:#a9b7c8}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px system-ui,sans-serif}
+main{max-width:850px;margin:auto;padding:20px}.hero{padding:20px 0 12px}.hero h1{margin:0;font-size:clamp(28px,7vw,42px)}.hero p{color:var(--muted);margin-top:8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+label{display:block;font-weight:650;margin:12px 0 7px}input,textarea,button{font:inherit;width:100%;border-radius:9px;padding:12px;border:1px solid var(--line);background:#0e1723;color:var(--text)}
+textarea{min-height:100px;resize:vertical}button{background:var(--accent);color:#062033;font-weight:750;border:0;margin-top:14px;cursor:pointer}button:disabled{opacity:.6}
+.small{font-size:13px;color:var(--muted)}#status,#result{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}.pill{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:4px 9px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+<header class="hero"><span class="pill">Backend: Render · Gemini</span><h1>CNC VIEW</h1><p>Phân tích bản vẽ bằng AI. Chọn ảnh bản vẽ rồi gửi yêu cầu phân tích.</p></header>
+<section class="card">
+<label for="drawing">1. Chọn ảnh bản vẽ</label><input id="drawing" type="file" accept="image/*">
+<label for="notes">2. Yêu cầu phân tích</label><textarea id="notes" placeholder="Ví dụ: đọc kích thước, nhận diện chi tiết, gợi ý quy trình gia công..."></textarea>
+<label for="gcode">3. G-code (không bắt buộc)</label><textarea id="gcode" placeholder="Dán G-code tại đây nếu muốn AI xem xét..."></textarea>
+<label for="calibration">4. Thông tin hiệu chuẩn (không bắt buộc)</label><input id="calibration" type="text" placeholder="Ví dụ: 1 mm = 5 pixel">
+<button id="send">Gửi để phân tích</button><p class="small">Không tải lên bản vẽ bí mật hoặc nhạy cảm.</p>
+</section>
+<section class="card"><h2>Trạng thái</h2><div id="status">Sẵn sàng. Chọn ảnh để bắt đầu.</div></section>
+<section class="card"><h2>Kết quả AI</h2><div id="result">Kết quả sẽ hiện ở đây.</div></section>
+<p class="small">Đây là giao diện web cơ bản, không phải bản sao đầy đủ mọi chức năng của CNC PRO V11.7.</p>
+</main>
+<script>
+const API_URL = "https://cncview.onrender.com/api/drawing-analysis";
+const $ = id => document.getElementById(id);
+$("send").addEventListener("click", async () => {
+ const file = $("drawing").files[0];
+ if (!file) { $("status").textContent = "Bạn cần chọn ảnh bản vẽ trước."; return; }
+ $("send").disabled = true;
+ $("status").textContent = "Đang gửi yêu cầu... Backend miễn phí có thể cần một lúc để khởi động.";
+ $("result").textContent = "";
+ try {
+  const base64 = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1] || ""); reader.onerror = reject; reader.readAsDataURL(file); });
+  const response = await fetch(API_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image_base64:base64,image_mime:file.type || "image/jpeg",filename:file.name,notes:$("notes").value.trim(),gcode:$("gcode").value,calibration:$("calibration").value.trim()})});
+  const raw = await response.text(); let data; try {data=JSON.parse(raw)} catch {data=raw}
+  $("status").textContent = response.ok ? "Đã nhận phản hồi từ backend." : "Yêu cầu thất bại (HTTP "+response.status+").";
+  $("result").textContent = typeof data === "string" ? data : JSON.stringify(data,null,2);
+ } catch(err) {
+  $("status").textContent = "Không kết nối được API. Có thể backend đang ngủ, API key Gemini chưa đúng, hoặc cần cấu hình CORS.";
+  $("result").textContent = String(err);
+ } finally {$("send").disabled=false}
+});
+</script>
+</body></html>
